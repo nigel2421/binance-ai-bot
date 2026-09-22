@@ -1,0 +1,16 @@
+[Unit]
+Description=Deriv Crypto AI Bot Web Dashboard API Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/binance
+ExecStart=/binance/venv/bin/python -m src.web.app
+Restart=always
+RestartSec=3
+Environment=PYTHONUNBUFFERED=1
+Environment=PORT=8080
+
+[Install]
+WantedBy=multi-user.target

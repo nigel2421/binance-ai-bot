@@ -1,0 +1,27 @@
+{
+  "stage": "6",
+  "mode": "PAPER",
+  "dry_run": true,
+  "live_trading": false,
+  "min_opportunity_score": 50.0,
+  "ev_safety_margin": 0.03,
+  "min_probability_edge": 0.03,
+  "min_calibration_sample": 30,
+  "initial_paper_balance": 1000.0,
+  "max_risk_per_trade_pct": 0.015,
+  "max_open_positions": 3,
+  "max_correlated_positions": 2,
+  "max_daily_loss_pct": 0.05,
+  "max_drawdown_pct": 0.10,
+  "trade_journal_db": "config/trade_journal.db",
+  "monitored_symbols": [
+    "cryBTCUSD",
+    "cryETHUSD",
+    "crySOLUSD",
+    "cryBNBUSD",
+    "cryXRPUSD",
+    "cryDOGEUSD",
+    "cryADAUSD",
+    "cryBCHUSD"
+  ]
+}

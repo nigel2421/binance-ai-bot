@@ -1,0 +1,124 @@
+{
+  "replay_version": "baseline_v1",
+  "timestamp": "2026-09-22 21:12:24",
+  "total_observations": 1800,
+  "monitored_symbols": 8,
+  "percentiles": {
+    "opportunity_score": {
+      "min": 0.0,
+      "P10": 0.0,
+      "P25": 38.3,
+      "median": 46.6,
+      "P75": 52.7,
+      "P90": 56.6,
+      "P95": 57.0,
+      "max": 57.7
+    },
+    "consensus_confidence": {
+      "min": 0.0,
+      "P10": 0.0,
+      "P25": 0.149625,
+      "median": 0.25115,
+      "P75": 0.332725,
+      "P90": 0.4159,
+      "P95": 0.4232,
+      "max": 0.4423
+    },
+    "market_quality": {
+      "min": 50.25208333333333,
+      "P10": 61.759791666666665,
+      "P25": 66.30052083333332,
+      "median": 76.49895833333332,
+      "P75": 86.24322916666665,
+      "P90": 93.71458333333335,
+      "P95": 96.15,
+      "max": 96.5
+    },
+    "timeframe_alignment": {
+      "min": 0.0,
+      "P10": 0.0,
+      "P25": 0.0,
+      "median": 0.0,
+      "P75": 0.0,
+      "P90": 0.0,
+      "P95": 0.0,
+      "max": 0.0
+    },
+    "evidence_diversity": {
+      "min": 0.0,
+      "P10": 0.0,
+      "P25": 50.0,
+      "median": 75.0,
+      "P75": 100.0,
+      "P90": 100.0,
+      "P95": 100.0,
+      "max": 100.0
+    }
+  },
+  "strategy_contributions": {
+    "CryptoTrendAgent": {
+      "participated": 1125,
+      "abstained": 675,
+      "opposed": 33,
+      "strongest_supporter": 634
+    },
+    "CryptoMomentumAgent": {
+      "participated": 914,
+      "abstained": 886,
+      "opposed": 32,
+      "strongest_supporter": 484
+    },
+    "CryptoBreakoutAgent": {
+      "participated": 5,
+      "abstained": 1795,
+      "opposed": 0,
+      "strongest_supporter": 4
+    },
+    "CryptoMeanReversionAgent": {
+      "participated": 42,
+      "abstained": 1758,
+      "opposed": 16,
+      "strongest_supporter": 25
+    },
+    "CryptoStructureAgent": {
+      "participated": 1301,
+      "abstained": 499,
+      "opposed": 65,
+      "strongest_supporter": 363
+    }
+  },
+  "forward_outcomes": {
+    "<50": {
+      "count": 1122,
+      "avg_ret_1_pct": 0.03194261810664196,
+      "avg_ret_5_pct": 0.20486935736514297,
+      "avg_ret_20_pct": 0.848288720946987,
+      "avg_mfe_pct": 2.081253361871604,
+      "avg_mae_pct": 1.043501685050072
+    },
+    "50-60": {
+      "count": 678,
+      "avg_ret_1_pct": 0.04278076030280073,
+      "avg_ret_5_pct": 0.26356487045220367,
+      "avg_ret_20_pct": 0.9816252854330074,
+      "avg_mfe_pct": 2.4898752206239156,
+      "avg_mae_pct": 1.338931346574665
+    },
+    "60-70": {
+      "count": 0,
+      "avg_ret_1_pct": 0.0,
+      "avg_ret_5_pct": 0.0,
+      "avg_ret_20_pct": 0.0,
+      "avg_mfe_pct": 0.0,
+      "avg_mae_pct": 0.0
+    },
+    "70+": {
+      "count": 0,
+      "avg_ret_1_pct": 0.0,
+      "avg_ret_5_pct": 0.0,
+      "avg_ret_20_pct": 0.0,
+      "avg_mfe_pct": 0.0,
+      "avg_mae_pct": 0.0
+    }
+  }
+}

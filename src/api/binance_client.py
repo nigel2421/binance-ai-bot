@@ -81,6 +81,20 @@ class BinanceClient:
             response.raise_for_status()
             return await response.json()
 
+    async def get_account_info(self, recv_window: int = 10000) -> Dict[str, Any]:
+        """Fetch private account metadata and balances using signed API request."""
+        session = await self._get_session()
+        params = {
+            "recvWindow": recv_window,
+            "timestamp": int(time.time() * 1000),
+        }
+        query_string = "&".join([f"{k}={v}" for k, v in sorted(params.items())])
+        sig = self._generate_signature(params)
+        url = f"{self.rest_url}/api/v3/account?{query_string}&signature={sig}"
+        async with session.get(url) as response:
+            response.raise_for_status()
+            return await response.json()
+
     async def stream_klines(
         self,
         symbols: List[str],

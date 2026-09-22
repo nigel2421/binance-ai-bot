@@ -1,0 +1,32 @@
+{
+  "version": "baseline_v1",
+  "created_at": "2026-09-22T21:07:00Z",
+  "system": {
+    "dry_run": true,
+    "live_trading": false,
+    "max_markets_to_watch": 8
+  },
+  "strategy_weights": {
+    "CryptoTrendAgent": 1.0,
+    "CryptoMomentumAgent": 1.0,
+    "CryptoBreakoutAgent": 1.0,
+    "CryptoMeanReversionAgent": 1.0,
+    "CryptoStructureAgent": 1.0
+  },
+  "opportunity_weights": {
+    "consensus_quality": 0.30,
+    "market_quality": 0.15,
+    "timeframe_alignment": 0.15,
+    "regime_confidence": 0.10,
+    "evidence_diversity": 0.10,
+    "signal_freshness": 0.10,
+    "strategy_signal_quality": 0.10
+  },
+  "score_thresholds": {
+    "ELITE": 85.0,
+    "STRONG": 75.0,
+    "MODERATE": 65.0,
+    "WEAK": 55.0,
+    "REJECT": 0.0
+  }
+}
