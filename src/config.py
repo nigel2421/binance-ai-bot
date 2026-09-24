@@ -26,9 +26,10 @@ def _get_api_secret() -> str:
 
 class AppConfig(BaseModel):
     # Deriv API Configuration
-    deriv_app_id: str = Field(default_factory=lambda: os.getenv("DERIV_APP_ID", "1089"))
+    deriv_app_id: str = Field(default_factory=lambda: os.getenv("DERIV_APP_ID", "33R2Z6MTElnIWrId8aH3m"))
     deriv_api_token: str = Field(default_factory=_get_api_token)
     deriv_ws_url: str = Field(default_factory=lambda: os.getenv("DERIV_WS_URL", "wss://ws.derivws.com/websockets/v3"))
+    deriv_api_base: str = Field(default_factory=lambda: os.getenv("DERIV_API_BASE", "https://api.derivws.com"))
 
     # Legacy/Optional Binance Fields
     binance_api_key: str = Field(default_factory=lambda: os.getenv("BINANCE_API_KEY", ""))

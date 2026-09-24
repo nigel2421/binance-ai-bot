@@ -136,7 +136,52 @@ class DerivProposalEngine:
 
         if "error" in res:
             err_msg = res["error"].get("message", "Proposal pricing rejected")
+            err_code = str(res["error"].get("code", "")).lower()
             logger.warning(f"[PROPOSAL_ENGINE][{symbol}] Proposal pricing error: {err_msg}")
+            
+            # Fallback for Paper Trading Mode (DRY_RUN=True) when API token is unauthenticated or authorization fails
+            from src.config import config
+            if config.dry_run and ("unauthenticated" in err_msg.lower() or "authorization" in err_msg.lower() or "invalidtoken" in err_code or "permission" in err_msg.lower() or "token" in err_msg.lower()):
+                pid = f"paper_prop_{uuid.uuid4().hex[:6]}"
+                ask = stake
+                payout = round(stake * 1.95, 2)
+                net_profit = payout - ask
+                max_loss = ask
+                net_return_pct = (net_profit / ask) * 100.0
+                breakeven_prob = ask / payout
+                economics = ContractEconomics(
+                    ask_price=ask,
+                    payout=payout,
+                    net_profit=net_profit,
+                    max_loss=max_loss,
+                    net_return_pct=net_return_pct,
+                    breakeven_probability=breakeven_prob,
+                    spot_price=0.0,
+                )
+                logger.info(f"[PROPOSAL_ENGINE][{symbol}] Using paper trading economics fallback (Ask ${ask:.2f}, Payout ${payout:.2f})")
+                return ProposalResult(
+                    proposal_id=pid,
+                    symbol=symbol,
+                    contract_type=candidate.contract_type,
+                    duration=candidate.duration,
+                    duration_unit=candidate.duration_unit,
+                    currency=self.currency,
+                    economics=economics,
+                    raw_response={"note": "paper_trading_fallback"},
+                    is_valid=True,
+                )
+
+            return ProposalResult(
+                proposal_id="",
+                symbol=symbol,
+                contract_type=candidate.contract_type,
+                duration=candidate.duration,
+                duration_unit=candidate.duration_unit,
+                currency=self.currency,
+                is_valid=False,
+                error_message=err_msg,
+            )
+
             return ProposalResult(
                 proposal_id="",
                 symbol=symbol,

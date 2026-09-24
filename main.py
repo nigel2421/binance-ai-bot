@@ -725,13 +725,16 @@ async def run_paper_trading(duration_seconds: int = 60):
 
             current_spots = {}
             for sym, w in watchers.items():
-                w.evaluate_health(is_ws_connected=(client.state in (ConnectionState.CONNECTED, ConnectionState.AUTHENTICATED)))
+                is_connected = (client.state in (ConnectionState.CONNECTED, ConnectionState.AUTHENTICATED) or config.dry_run)
+                w.evaluate_health(is_ws_connected=is_connected)
                 _, mtf_res, quality_score = analyze_symbol_intelligence(sym, data_engine, regime_agent)
                 w.update_intelligence(mtf_res, quality_score)
 
                 df_1m = data_engine.get_dataframe(sym, "1m")
                 if not df_1m.empty:
-                    current_spots[sym] = float(df_1m.iloc[-1]["close"])
+                    spot_price = float(df_1m.iloc[-1]["close"])
+                    current_spots[sym] = spot_price
+                    w.update_tick(spot_price)
 
                 # Run Stage 5 pipeline
                 signals, consensus, op = evaluate_market_stage5(
@@ -739,7 +742,7 @@ async def run_paper_trading(duration_seconds: int = 60):
                 )
 
                 # Evaluate Stage 6 Paper Trade Funnel
-                is_live_ready = (w.state == WatcherState.HEALTHY or w.live_stream_ready)
+                is_live_ready = (w.state == WatcherState.HEALTHY or w.live_stream_ready or config.dry_run)
                 avail_contracts = list(registry.contract_capabilities.get(sym, {}).keys()) or ["CALL", "PUT"]
 
                 trade_rec = await paper_engine.evaluate_and_execute(

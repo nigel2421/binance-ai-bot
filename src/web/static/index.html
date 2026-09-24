@@ -349,6 +349,7 @@
         </div>
       </div>
       <div class="header-actions">
+        <span class="badge badge-blue" id="kes-rate-badge">💱 1 USD = KSh 129.44</span>
         <span class="badge badge-amber">🔒 PAPER TRADING (DRY_RUN=True)</span>
         <span class="badge badge-green" id="telegram-badge">📲 TELEGRAM ACTIVE</span>
         <button class="btn btn-secondary" onclick="triggerTestTelegram()">📨 Test Telegram</button>
@@ -361,7 +362,7 @@
       <div class="stat-card green">
         <div class="stat-label">Net Paper PnL</div>
         <div class="stat-value" id="stat-pnl">$0.00</div>
-        <div class="stat-sub" id="stat-gross">Gross: $0.00 | Loss: $0.00</div>
+        <div class="stat-sub" id="stat-pnl-kes">KSh 0.00 | Gross: $0.00</div>
       </div>
       <div class="stat-card blue">
         <div class="stat-label">Win Rate (Observed)</div>
@@ -371,7 +372,7 @@
       <div class="stat-card purple">
         <div class="stat-label">Profit Factor</div>
         <div class="stat-value" id="stat-pf">0.00</div>
-        <div class="stat-sub" id="stat-expectancy">Expectancy: $0.0000</div>
+        <div class="stat-sub" id="stat-expectancy">Expectancy: $0.0000 (KSh 0.00)</div>
       </div>
       <div class="stat-card amber">
         <div class="stat-label">Peak Drawdown</div>
@@ -388,7 +389,7 @@
         <div class="card">
           <div class="card-title">
             <span>📡 Live Crypto Market Quality & Price Radar</span>
-            <span class="badge badge-blue" id="market-count">8 Monitored Pairs</span>
+            <span class="badge badge-blue" id="market-count">9 Monitored Pairs</span>
           </div>
           <div class="markets-grid" id="markets-container">
             <!-- Dynamically populated -->
@@ -420,8 +421,29 @@
         </div>
       </div>
 
-      <!-- Right Column: Trade Funnel & Audit Log -->
-      <div style="display: flex; flex-direction: column; gap: 24px;">
+        <!-- Live Binance Account Balances -->
+        <div class="card">
+          <div class="card-title">
+            <span>💰 Live Binance Account Balances</span>
+            <span class="badge badge-green" id="binance-status-badge">SPOT • ACTIVE</span>
+          </div>
+          <div style="max-height: 250px; overflow-y: auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th>ASSET</th>
+                  <th>FREE</th>
+                  <th>LOCKED</th>
+                  <th>TOTAL</th>
+                </tr>
+              </thead>
+              <tbody id="binance-balance-table-body">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         <!-- Trade Funnel & Bottlenecks -->
         <div class="card">
           <div class="card-title">
@@ -437,7 +459,7 @@
           <div class="card-title">
             <span>📋 Recent Trade Journal Audit Log</span>
           </div>
-          <div style="max-height: 300px; overflow-y: auto;">
+          <div style="max-height: 240px; overflow-y: auto;">
             <table>
               <thead>
                 <tr>
@@ -469,37 +491,79 @@
 
     async function fetchData() {
       try {
-        const [statusRes, marketsRes, perfRes, stratRes, funnelRes, journalRes] = await Promise.all([
+        const [statusRes, marketsRes, perfRes, stratRes, funnelRes, journalRes, balRes] = await Promise.all([
           fetch('/api/status').then(r => r.json()),
           fetch('/api/markets').then(r => r.json()),
           fetch('/api/performance').then(r => r.json()),
           fetch('/api/strategies').then(r => r.json()),
           fetch('/api/funnel').then(r => r.json()),
-          fetch('/api/journal').then(r => r.json())
+          fetch('/api/journal').then(r => r.json()),
+          fetch('/api/binance-balance').then(r => r.json())
         ]);
 
+        const kesRate = marketsRes.usd_to_kes_rate || perfRes.usd_to_kes_rate || 129.50;
+        document.getElementById('kes-rate-badge').innerText = `💱 1 USD = KSh ${kesRate.toFixed(2)}`;
+
+        // Binance Balance
+        const bBody = document.getElementById('binance-balance-table-body');
+        bBody.innerHTML = '';
+        if (balRes && balRes.balances && balRes.balances.length > 0) {
+          document.getElementById('binance-status-badge').innerText = `${balRes.account_type} • ${balRes.total_assets_count} ASSETS`;
+          balRes.balances.forEach(b => {
+            bBody.innerHTML += `
+              <tr>
+                <td><strong>${b.asset}</strong></td>
+                <td style="color: var(--accent-green);">${b.free.toFixed(6)}</td>
+                <td style="color: var(--text-muted);">${b.locked.toFixed(6)}</td>
+                <td><strong>${b.total.toFixed(6)}</strong></td>
+              </tr>
+            `;
+          });
+        } else {
+          bBody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">No non-zero balances found</td></tr>';
+        }
+
         // Performance
+        const pnlKes = perfRes.net_pnl_kes !== undefined ? perfRes.net_pnl_kes : perfRes.net_pnl * kesRate;
+        const grossKes = perfRes.gross_profit_kes !== undefined ? perfRes.gross_profit_kes : perfRes.gross_profit * kesRate;
+        const expKes = perfRes.expectancy_kes !== undefined ? perfRes.expectancy_kes : perfRes.expectancy * kesRate;
+
         document.getElementById('stat-pnl').innerText = `$${perfRes.net_pnl.toFixed(2)}`;
-        document.getElementById('stat-gross').innerText = `Gross: $${perfRes.gross_profit.toFixed(2)} | Loss: $${perfRes.gross_loss.toFixed(2)}`;
+        document.getElementById('stat-pnl-kes').innerText = `KSh ${pnlKes.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} | Gross: $${perfRes.gross_profit.toFixed(2)}`;
         document.getElementById('stat-winrate').innerText = `${perfRes.win_rate.toFixed(1)}%`;
         document.getElementById('stat-trades').innerText = `${perfRes.wins} Wins / ${perfRes.losses} Losses`;
         document.getElementById('stat-pf').innerText = perfRes.profit_factor.toFixed(2);
-        document.getElementById('stat-expectancy').innerText = `Expectancy: $${perfRes.expectancy.toFixed(4)}`;
+        document.getElementById('stat-expectancy').innerText = `Expectancy: $${perfRes.expectancy.toFixed(4)} (KSh ${expKes.toFixed(2)})`;
         document.getElementById('stat-drawdown').innerText = `$${perfRes.max_drawdown.toFixed(2)} (${perfRes.max_drawdown_pct.toFixed(1)}%)`;
         document.getElementById('stat-evals').innerText = `Total Evaluations: ${perfRes.total_evaluations}`;
 
         // Markets
         const mContainer = document.getElementById('markets-container');
         mContainer.innerHTML = '';
+        document.getElementById('market-count').innerText = `${marketsRes.markets.length} Monitored Pairs`;
         marketsRes.markets.forEach(m => {
-          const price = m.live_price ? `$${m.live_price.toLocaleString(undefined, {minimumFractionDigits: 2})}` : 'Streaming...';
+          let priceUsd = 'Streaming...';
+          let priceKesText = '';
+
+          if (m.live_price) {
+            if (m.symbol === 'cryETHBTC' || m.binance_symbol === 'ETHBTC') {
+              priceUsd = `${m.live_price.toFixed(5)} BTC`;
+              priceKesText = '<div style="font-size: 12px; font-weight: 700; color: var(--accent-amber); margin-bottom: 4px;">Crypto Cross Pair</div>';
+            } else {
+              priceUsd = `$${m.live_price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 4})}`;
+              const kesVal = m.kes_price || (m.live_price * kesRate);
+              priceKesText = `<div style="font-size: 13px; font-weight: 700; color: var(--accent-amber); margin-bottom: 4px;">KSh ${kesVal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>`;
+            }
+          }
+
           mContainer.innerHTML += `
             <div class="market-box">
               <div class="market-header">
                 <span class="symbol-name">${m.symbol}</span>
                 <span class="badge ${m.regime === 'UPTREND' ? 'badge-green' : 'badge-amber'}">${m.regime}</span>
               </div>
-              <div class="market-price">${price}</div>
+              <div class="market-price">${priceUsd}</div>
+              ${priceKesText}
               <div style="font-size: 11px; color: var(--text-muted);">Quality Score: ${m.quality_score.toFixed(1)}</div>
               <div class="quality-bar-bg">
                 <div class="quality-bar-fill" style="width: ${m.quality_score}%;"></div>

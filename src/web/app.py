@@ -56,8 +56,27 @@ def _load_journal_records(db_path: str = "config/trade_journal.db") -> List[Jour
         return []
 
 
+_kes_rate_cache = {"rate": 129.50, "timestamp": 0}
+
+def _get_usd_to_kes_rate() -> float:
+    now = time.time()
+    if now - _kes_rate_cache["timestamp"] < 300:
+        return _kes_rate_cache["rate"]
+    try:
+        import urllib.request
+        req = urllib.request.urlopen("https://open.er-api.com/v6/latest/USD", timeout=3)
+        data = json.loads(req.read().decode("utf-8"))
+        rate = float(data.get("rates", {}).get("KES", 129.50))
+        _kes_rate_cache["rate"] = rate
+        _kes_rate_cache["timestamp"] = now
+        return rate
+    except Exception:
+        return _kes_rate_cache["rate"]
+
+
 async def handle_status(request: web.Request) -> web.Response:
     fp = config.get_config_fingerprint()
+    kes_rate = _get_usd_to_kes_rate()
     data = {
         "status": "ONLINE",
         "timestamp": time.time(),
@@ -66,6 +85,7 @@ async def handle_status(request: web.Request) -> web.Response:
         "config_version": fp["config_version"],
         "config_hash": fp["config_hash"],
         "telegram_enabled": config.telegram_enabled,
+        "usd_to_kes_rate": kes_rate,
         "monitored_markets": ["cryBTCUSD", "cryETHUSD", "cryETHBTC", "crySOLUSD", "cryXRPUSD", "cryLTCUSD", "cryBCHUSD", "cryADAUSD", "cryAVAXUSD"],
         "quarantined_markets": config.quarantined_symbols,
     }
@@ -86,6 +106,8 @@ async def handle_markets(request: web.Request) -> web.Response:
         "cryAVAXUSD": {"symbol": "cryAVAXUSD", "binance_symbol": "AVAXUSDT", "quality_score": 85.0, "regime": "UPTREND", "trend_strength": 0.65},
     }
     
+    kes_rate = _get_usd_to_kes_rate()
+
     # Enrich with live Binance ticker prices asynchronously
     try:
         from src.api.binance_client import BinanceClient
@@ -97,15 +119,22 @@ async def handle_markets(request: web.Request) -> web.Response:
             b_sym = v["binance_symbol"]
             if b_sym in price_map:
                 v["live_price"] = price_map[b_sym]
+                # Calculate KSH price equivalent if quote is USD/USDT
+                if "USDT" in b_sym or "USD" in k:
+                    v["kes_price"] = round(price_map[b_sym] * kes_rate, 2)
+                else:
+                    v["kes_price"] = price_map[b_sym]
+            v["usd_to_kes_rate"] = kes_rate
     except Exception as err:
         logger.debug(f"[WEB_SERVER] Binance ticker enrichment note: {err}")
 
-    return web.json_response({"markets": list(tickers.values())})
+    return web.json_response({"markets": list(tickers.values()), "usd_to_kes_rate": kes_rate})
 
 
 async def handle_performance(request: web.Request) -> web.Response:
     records = _load_journal_records()
     summary = PerformanceEngine.calculate_global_performance(records)
+    kes_rate = _get_usd_to_kes_rate()
     data = {
         "total_evaluations": summary.total_records,
         "paper_trades": summary.paper_trades,
@@ -115,16 +144,22 @@ async def handle_performance(request: web.Request) -> web.Response:
         "win_rate": round(summary.win_rate, 2),
         "actual_observed_win_rate": round(summary.actual_observed_win_rate * 100, 2),
         "net_pnl": round(summary.net_pnl, 2),
+        "net_pnl_kes": round(summary.net_pnl * kes_rate, 2),
         "gross_profit": round(summary.gross_profit, 2),
+        "gross_profit_kes": round(summary.gross_profit * kes_rate, 2),
         "gross_loss": round(summary.gross_loss, 2),
+        "gross_loss_kes": round(summary.gross_loss * kes_rate, 2),
         "profit_factor": round(summary.profit_factor, 2),
         "expectancy": round(summary.expectancy, 4),
+        "expectancy_kes": round(summary.expectancy * kes_rate, 2),
         "max_drawdown": round(summary.max_drawdown, 2),
+        "max_drawdown_kes": round(summary.max_drawdown * kes_rate, 2),
         "max_drawdown_pct": round(summary.max_drawdown_pct, 2),
         "max_consecutive_wins": summary.max_consecutive_wins,
         "max_consecutive_losses": summary.max_consecutive_losses,
         "avg_opportunity_score": round(summary.avg_opportunity_score, 1),
         "avg_ev_at_entry": round(summary.avg_ev_at_entry, 2),
+        "usd_to_kes_rate": kes_rate,
     }
     return web.json_response(data)
 
@@ -229,6 +264,39 @@ async def handle_action_test_telegram(request: web.Request) -> web.Response:
     return web.json_response({"success": success})
 
 
+async def handle_binance_balance(request: web.Request) -> web.Response:
+    try:
+        from src.api.binance_client import BinanceClient
+        client = BinanceClient()
+        account_info = await client.get_account_info()
+        await client.close()
+        
+        balances = [
+            {
+                "asset": b["asset"],
+                "free": float(b["free"]),
+                "locked": float(b["locked"]),
+                "total": float(b["free"]) + float(b["locked"]),
+            }
+            for b in account_info.get("balances", [])
+            if float(b["free"]) > 0 or float(b["locked"]) > 0
+        ]
+        balances.sort(key=lambda x: x["total"], reverse=True)
+        
+        kes_rate = _get_usd_to_kes_rate()
+        return web.json_response({
+            "success": True,
+            "account_type": account_info.get("accountType", "SPOT"),
+            "can_trade": account_info.get("canTrade", True),
+            "total_assets_count": len(balances),
+            "usd_to_kes_rate": kes_rate,
+            "balances": balances,
+        })
+    except Exception as err:
+        logger.error(f"[WEB_SERVER] Error fetching Binance balance: {err}")
+        return web.json_response({"success": False, "error": str(err), "balances": []})
+
+
 async def handle_index(request: web.Request) -> web.FileResponse:
     index_file = os.path.join(STATIC_DIR, "index.html")
     return web.FileResponse(index_file)
@@ -245,6 +313,7 @@ def create_app() -> web.Application:
     app.router.add_get("/api/strategies", handle_strategies)
     app.router.add_get("/api/funnel", handle_funnel)
     app.router.add_get("/api/journal", handle_journal)
+    app.router.add_get("/api/binance-balance", handle_binance_balance)
     app.router.add_post("/api/actions/seed-history", handle_action_seed_history)
     app.router.add_post("/api/actions/test-telegram", handle_action_test_telegram)
     

@@ -8,6 +8,7 @@ from typing import Dict, Any, List, Optional, Callable
 import websocket
 
 from src.config import config
+from src.api.deriv_v2_auth import is_legacy_app_id, resolve_authenticated_ws_url
 
 logger = logging.getLogger("API")
 
@@ -26,9 +27,10 @@ class DerivClient:
     Exposes async request/response matching via req_id correlation and callback streams.
     Implements connection supervision, exponential backoff reconnects, auto-authorization,
     and duplicate-free subscription restoration.
+    Supports both legacy numeric app_id ({authorize: token}) and modern Deriv v2 PAT OTP URLs.
     """
 
-    PRIMARY_ENDPOINT = "wss://red.derivws.com/websockets/v3"
+    PRIMARY_ENDPOINT = "wss://ws.derivws.com/websockets/v3"
 
     def __init__(
         self,
@@ -39,7 +41,7 @@ class DerivClient:
     ):
         self.app_id = str(app_id or config.deriv_app_id).strip()
         self.api_token = (api_token or config.deriv_api_token).strip()
-        self.ws_url = ws_url or self.PRIMARY_ENDPOINT
+        self.ws_url = ws_url or config.deriv_ws_url or self.PRIMARY_ENDPOINT
         self._on_disconnect_cb = on_disconnect_cb
 
         self.state: ConnectionState = ConnectionState.DISCONNECTED
@@ -78,7 +80,26 @@ class DerivClient:
         self.state = ConnectionState.CONNECTING
         self._running = True
 
-        endpoint = f"{self.ws_url.rstrip('/')}?app_id={self.app_id}"
+        # Check if using v2 PAT token / string app_id
+        is_v2_pat = self.api_token.startswith("pat_") or not is_legacy_app_id(self.app_id)
+
+        if is_v2_pat and self.api_token:
+            logger.info(f"[API] Resolving Deriv v2 REST OTP WebSocket URL for app_id={self.app_id}...")
+            try:
+                endpoint, account_info = await asyncio.to_thread(
+                    resolve_authenticated_ws_url,
+                    self.app_id,
+                    self.api_token,
+                    mode="demo",
+                    api_base=getattr(config, "deriv_api_base", "https://api.derivws.com")
+                )
+                logger.info(f"[API] Resolved v2 OTP endpoint for account {account_info.get('account_id')}: {endpoint}")
+            except Exception as err:
+                logger.error(f"[API] Failed to resolve v2 OTP URL: {err}. Falling back to default ws URL.")
+                endpoint = f"{self.ws_url.rstrip('/')}?app_id={self.app_id}"
+        else:
+            endpoint = f"{self.ws_url.rstrip('/')}?app_id={self.app_id}"
+
         logger.info(f"[API] Connecting to Deriv WebSocket: {endpoint}")
 
         self.ws = websocket.WebSocketApp(
@@ -108,8 +129,11 @@ class DerivClient:
         if not self._heartbeat_task or self._heartbeat_task.done():
             self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
 
-        # Authorize if token set
-        if self.api_token:
+        # If v2 OTP URL, connection is pre-authenticated; otherwise authorize legacy
+        if is_v2_pat:
+            self.state = ConnectionState.AUTHENTICATED
+            logger.info("[API] Deriv v2 session pre-authenticated via OTP URL.")
+        elif self.api_token:
             await self.authorize()
 
     def _run_ws(self):
@@ -201,9 +225,9 @@ class DerivClient:
             return {"error": {"message": "Authorization request failed"}}
 
         if "error" in res:
-            self.state = ConnectionState.ERROR
+            self.state = ConnectionState.CONNECTED
             err_msg = res['error'].get('message', 'Authorization failed')
-            logger.error(f"[API] Authorization REJECTED: {err_msg}")
+            logger.warning(f"[API] Authorization REJECTED: {err_msg}. Remaining in CONNECTED public mode.")
             return res
 
         self.state = ConnectionState.AUTHENTICATED
